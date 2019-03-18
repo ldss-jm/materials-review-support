@@ -3,16 +3,16 @@ require_relative '../sersol.rb'
 
 RSpec.describe SersolEntry do
 
-  describe 'blacklisted' do
+  describe 'blacklisted?' do
 
     ss1 = SersolEntry.new('include/exclude' => 'exclude')
     it 'true for records to be excluded' do
-      expect(ss1.blacklisted).to be true
+      expect(ss1.blacklisted?).to be true
     end
 
     ss2 = SersolEntry.new('include/exclude' => '')
     it 'raises error if whitelist not yes/no' do
-      expect{ss2.blacklisted}.to raise_error(RuntimeError)
+      expect{ss2.blacklisted?}.to raise_error(RuntimeError)
     end
   end
 

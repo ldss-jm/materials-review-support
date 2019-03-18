@@ -8,7 +8,7 @@ class SersolEntry
   # A SerSol resource / access point. Is associated with a particular
   # SersolTitle (ssj/title)
 
-  attr_reader :ssj, :title, :issn, :eissn, :enddate_descriptor,:enddate,
+  attr_reader :ssj, :title, :issn, :eissn, :enddate_descriptor, :enddate,
               :end_mode, :resource
 
   def initialize(hsh)
@@ -26,7 +26,7 @@ class SersolEntry
 
   # true when this is a resource E-res Acq does not want to be considered
   # as an alt-access point
-  def blacklisted
+  def blacklisted?
     case @whitelist_data&.downcase
     when 'exclude'
       true
@@ -83,7 +83,7 @@ class SersolEntry
   # JSTOR dates are always considered to be embargos.
   def end_mode
     return @endmode if @endmode
-    if @enddate_descriptor == ''
+    if @enddate_descriptor == '' || @enddate_descriptor.nil?
       @endmode = 'current'
     elsif @enddate_descriptor.downcase.include?('current')
       @endmode = 'current'
@@ -213,14 +213,15 @@ class SersolTitle
     unless best
       return {mode: nil, modevalue: nil, comparator: nil, date: nil}
     end
-    if best.end_mode == 'current'
+    case best.end_mode
+    when 'current'
       mode = 'current'
       comparator = 'current'
-    elsif best.end_mode == 'embargo'
+    when 'embargo'
       mode = 'embargo'
       comparator = best.embargo_comparator
       date = best.embargo_text
-    elsif best.end_mode == 'fixed'
+    when 'fixed'
       mode = 'fixed'
       comparator = best.enddate
     end

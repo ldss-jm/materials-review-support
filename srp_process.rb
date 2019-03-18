@@ -2,7 +2,7 @@ require 'csv'
 require 'json'
 require_relative 'sersol'
 require_relative 'nonsersol'
-#require_relative 'metadata_api'
+load '../worldcat_api_and_wcm/metadata_api.rb'
 
 
 =begin
@@ -52,9 +52,8 @@ looking up oclc nums in worldcat to match up w/ sersol report
 #ssj0006315	Journal	Slavonic and East European review. American series	1535-0940	2330-6246	3/1/1943	12/31/1944	JSTOR Arts & Sciences II	http://libproxy.lib.unc.edu/login?url=http://www.jstor.org/journal/slaveasteurorevi	yes
 
 
-#secretfile = 'metadata.secret'
-#api = MetadataAPI.new
-#api.get_keys(secretfile)
+secretfile = File.dirname(__FILE__).to_s + '/../worldcat_api_and_wcm/kms.metadata.secret'
+api = MetadataAPI.new(secretfile)
 
 
 process_sierra = false
@@ -122,23 +121,39 @@ end
 #
 sersol_records = []
 blacklist = []
-File.open(SERSOL_FILE, 'rb:bom|utf-16:utf-8') do |f|
-  lines = f.read.split("\n")
-  ss_headers = lines.delete_at(0).rstrip.downcase.split("\t")
-  lines.each do |r|
-    sersol = SersolEntry.new(Hash[ss_headers.zip(r.rstrip.split("\t"))])
-    if sersol.blacklisted
-      blacklist << sersol.ssj
-    else
-      sersol_records << sersol
-    end
+#File.open(SERSOL_FILE, 'rb:bom|utf-16:utf-8') do |f|
+#  lines = f.read.split("\n")
+#  ss_headers = lines.delete_at(0).rstrip.downcase.split("\t")
+#  lines.each do |r|
+#    sersol = SersolEntry.new(Hash[ss_headers.zip(r.rstrip.split("\t"))])
+#    if sersol.blacklisted?
+#      blacklist << sersol.ssj
+#    else
+#      sersol_records << sersol
+#    end
+#  end
+#end
+
+sersol_csv = CSV.open(SERSOL_FILE, 'rb:utf-8',
+                      headers: true,
+                      header_converters: :downcase,
+                      col_sep: "\t",
+                      quote_char: "\x00")
+sersol_csv.each do |r|
+  sersol = SersolEntry.new(r.to_h)
+  if sersol.blacklisted?
+    blacklist << sersol.ssj
+    next
   end
+  sersol_records << sersol
 end
+ss_headers = sersol_csv.headers
+sersol_csv.close
 
 # hash of sersoltitles by ssj#
 sersol_by_ssj = {}
 sersol_records.each do |entry|
-  unless entry.blacklisted
+  unless entry.blacklisted?
     ssj = entry.ssj
     sersol_by_ssj[ssj] = SersolTitle.new(ssj) unless sersol_by_ssj.include?(ssj)
     sersol_by_ssj[ssj].entries << entry
@@ -190,7 +205,7 @@ if process_sierra
   # use fallback methods to find matches for unmatched records
   #
   no_matches = mil_records.select { |r| r.match_count == 0 }
-  prev_scraped = {}
+  prev_scraped = ''
   File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
 
   i=0
@@ -265,6 +280,22 @@ if process_titlelist
       titlelist_records << w
     end
   end
+
+  #sersol_csv = CSV.open(SERSOL_FILE, 'rb:utf-8',
+  #                      headers: true,
+  #                      header_converters: :downcase,
+  #                      col_sep: "\t",
+  #                      quote_char: "\x00")
+  #  sersol_csv.each do |r|
+  #    sersol = SersolEntry.new(r.to_h)
+  #    if sersol.blacklisted?
+  #      blacklist << sersol.ssj
+  #      next
+  #    end
+  #    sersol_records << sersol
+  #  end
+  #  ss_headers = sersol_csv.headers
+  #  sersol_csv.close
 
   wmatched = titlelist_records.select { |r| r.match_count <= 1 }
   wextra_matches = titlelist_records.select { |r| r.match_count > 1 }

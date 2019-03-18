@@ -132,34 +132,36 @@ class MilEntry < NotSersolEntry
   end
 
   def add_scraped_issns
+    return unless @scraped_issns
     @all_issns += @scraped_issns
   end
 
   def add_022y
-    @all_issns_store << @_022y unless @_022y.empty?
+    @all_issns << @_022y unless @_022y.empty?
   end
 
   #scrapes 776|x and 022|a, 022|L, but not 022|y
   def scrape_issns(api)
     return @scraped_issns if @scraped_issns
     return nil if @_001.empty? || @_001 !~ (/^[0-9]+/)
+    puts "001: #{@_001}"
     api.read_bib(@_001)
-    issns = []
-    if api.bib.include?('776')
-      api.bib['776'].each do |tag|
-        tag['subfieldItems'].each do |sf|
-          issns << sf['data'] if sf['subfieldCode'] == 'x'
+    issns = Set.new
+    if api.bib.fields('776')
+      api.bib.fields('776').each do |field|
+        field.subfields.each do |sf|
+          issns << sf.value if sf.code == 'x'
         end
       end
     end
-    if api.bib.include?('022')
-      api.bib['022'].each do |tag|
-        tag['subfieldItems'].each do |sf|
-          issns << sf['data'] if ['a', 'l'].include?(sf['subfieldCode'])
+    if api.bib.fields('022')
+      api.bib.fields('022').each do |field|
+        field.subfields.each do |sf|
+          issns << sf.value if ['a', 'l'].include?(sf.code)
         end
       end
     end
-    @scraped_issns = Set.new(issns)
+    @scraped_issns = issns
   end
 end
 
