@@ -41,7 +41,7 @@ class NotSersolEntry
   def match_count
     @ss_match.length
   end
-  
+
   def all_entries
     return nil if @ss_match.empty?
     entries = []
@@ -50,7 +50,7 @@ class NotSersolEntry
     end
     entries
   end
-  
+
   def print_output(headers)
     output = headers.map { |h| @record[h] }
     output << @ss_match.length
@@ -61,25 +61,14 @@ class NotSersolEntry
       output << @note
     else
       sersol = @ss_match.first
-      full_data = sersol.most_recent_data
-      full_resources = sersol.most_recent&.map { |r| r.resource }
-      full_resources ||= []
-      full_resources = full_resources.join(' | ')
-      # free_data = sersol.most_recent_data(only_free: true)
-      # free_resources = sersol.most_recent(only_free: true)&.map { |r| r.resource }
-      # free_resources ||= []
-      # free_resources = free_resources.join(' | ')
       output += [@note,
                 all_issns.to_a.join(' | '),
                 sersol.ssj,
-                sersol.entries[0].title,
-                full_data[:mode].to_s,
-                full_data[:date].to_s,
-                full_resources.to_s,
-                # free_data[:mode].to_s,
-                # free_data[:date].to_s,
-                # free_resources.to_s,
+                sersol.entries.first.title,
                 ]
+      output += SersolTitle.out_data(sersol, sersol.entries) # full data
+      #output += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      #output += SersolTitle.out_data(sersol, sersol.free) # free data
     end
     output.join("\t")
   end
@@ -91,36 +80,24 @@ class NotSersolEntry
     sort_list = @ss_match.map do |ssj|
       [ssj.most_recent_data[:modevalue], ssj.most_recent_data[:comparator], ssj]
     end
-    # sort by (modevalue, end_date) DESC
     sort_list.sort_by { |a| [ a[0], a[1] ] }.reverse.each do |title|
       sersol = title[2]
-      full_data = sersol.most_recent_data
-      full_resources = sersol.most_recent&.map { |r| r.resource }
-      full_resources ||= []
-      full_resources = full_resources.join(' | ')
-      # free_data = sersol.most_recent_data(only_free: true)
-      # free_resources = sersol.most_recent(only_free: true)&.map { |r| r.resource }
-      # free_resources ||= []
-      # free_resources = free_resources.join(' | ')
       ss_line = [
         '',
         sersol.entries[0].title,
         sersol.ssj,
         sersol.all_issns.to_a.join(' | '),
-        '',
-        full_data[:mode].to_s,
-        full_data[:date].to_s,
-        full_resources.to_s,
+        ''
+      ]
+      ss_line += SersolTitle.out_data(sersol, sersol.entries) # full data
+      ss_line += [
         sersol.all_issns.to_a.join(' | '),
         sersol.ssj,
-        sersol.entries[0].title,
-        full_data[:mode].to_s,
-        full_data[:date].to_s,
-        full_resources.to_s
-        # free_resources.to_s, 
-        # free_data[:mode].to_s,
-        # free_data[:date].to_s,
+        sersol.entries[0].title
       ]
+      ss_line += SersolTitle.out_data(sersol, sersol.entries) # full data again
+      #ss_line += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      #ss_line += SersolTitle.out_data(sersol, sersol.free) # free data
       output << ss_line.join("\t")
     end
     return output.join("\n") + "\n\n"
@@ -129,7 +106,7 @@ end
 
 
 class MilEntry < NotSersolEntry
-  
+
   attr_accessor :all_issns
 
   def initialize(hsh)
@@ -145,11 +122,11 @@ class MilEntry < NotSersolEntry
     @ss_match_by = []
     @ssj = @_001 if @_001.start_with?('ss')
   end
-  
+
   def all_issns
     @all_issns ||= gen_all_issns
   end
-  
+
   def gen_all_issns
     @all_issns = Set.new([@_022a, @_022L, @_776].flatten)
   end
@@ -157,11 +134,11 @@ class MilEntry < NotSersolEntry
   def add_scraped_issns
     @all_issns += @scraped_issns
   end
-  
+
   def add_022y
     @all_issns_store << @_022y unless @_022y.empty?
   end
-  
+
   #scrapes 776|x and 022|a, 022|L, but not 022|y
   def scrape_issns(api)
     return @scraped_issns if @scraped_issns
@@ -187,7 +164,7 @@ class MilEntry < NotSersolEntry
 end
 
 class TitlelistEntry < NotSersolEntry
-  
+
   def initialize(hsh)
     @record = hsh
     @note = ''
@@ -200,9 +177,9 @@ class TitlelistEntry < NotSersolEntry
     @ss_match_by = []
     @ssj = hsh['ssj#'] if hsh['ssj#']&.start_with?('ss')
   end
-  
+
   def all_issns
     [@issn, @eissn].uniq.compact
   end
-  
+
 end

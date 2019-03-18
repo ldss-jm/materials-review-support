@@ -1,4 +1,4 @@
-require_relative '../class_nonsersol.rb'
+require_relative '../nonsersol.rb'
 
 RSpec.describe MilEntry do
 

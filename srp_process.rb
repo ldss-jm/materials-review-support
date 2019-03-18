@@ -1,8 +1,8 @@
 require 'csv'
 require 'json'
-require_relative 'class_sersol'
-require_relative 'class_nonsersol'
-require_relative 'metadata_api'
+require_relative 'sersol'
+require_relative 'nonsersol'
+#require_relative 'metadata_api'
 
 
 =begin
@@ -52,23 +52,23 @@ looking up oclc nums in worldcat to match up w/ sersol report
 #ssj0006315	Journal	Slavonic and East European review. American series	1535-0940	2330-6246	3/1/1943	12/31/1944	JSTOR Arts & Sciences II	http://libproxy.lib.unc.edu/login?url=http://www.jstor.org/journal/slaveasteurorevi	yes
 
 
-secretfile = 'metadata.secret'
-api = MetadataAPI.new
-api.get_keys(secretfile)
+#secretfile = 'metadata.secret'
+#api = MetadataAPI.new
+#api.get_keys(secretfile)
 
 
+process_sierra = false
+process_titlelist = true
 
 # input files  **tab-delim, utf16, no newlines in data
-MIL_EXPORT_FILE = 'split_issn_jcm.txt'
+MIL_EXPORT_FILE = 'sierra.txt'
 SERSOL_FILE = 'sersol.txt'
 TITLELIST_FILE = 'titlelist.txt'
 
 # output files
-EXTRAMATCH = 'output_problem_extramatches.txt'
-OUTPUT_CURRENT = 'output_current.txt'
-OUTPUT_NONCURRENT = 'output_noncurrent.txt'
-OUTPUT_TITLELIST_CURRENT = 'output_titlelist_current.txt'
-OUTPUT_TITLELIST_NONCURRENT = 'output_titlelist_noncurrent.txt'
+OUTPUT_SIERRA = 'output_sierra.txt'
+OUTPUT_TITLELIST = 'output_titlelist.txt'
+OUTPUT_SIERRA_EXTRAS = 'output_problem_sierra_extramatches.txt'
 OUTPUT_TITLELIST_EXTRAS = 'output_problem_titlelist_extramatches.txt'
 SCRAPED_ISSN_FILE = 'scraped_issns.json'
 
@@ -91,34 +91,26 @@ def delete_extra(arry, indx)
   arry[indx].ss_match = Set.new(arry[indx].ss_match.to_a.drop(1))
 end
 
-# prints records in reclist to appropriate current/noncurrent file
+# prints records in reclist to outfile
 def export_results(opt)
   reclist = opt[:reclist]
-  noncurrent_file = opt[:noncurrent_file]
-  current_file = opt[:current_file]
+  ofile = opt[:ofile]
   output_headers = opt[:output_headers]
   custom_headers = opt[:custom_headers]
   mode = 'w' unless opt[:mode] == 'a'
   headers = custom_headers + output_headers
-  File.open(noncurrent_file, mode) do |noncurrent|
-    File.open(current_file, mode) do |current|
-      noncurrent << headers.join("\t")+"\n" if mode == 'w'
-      current << headers.join("\t")+"\n" if mode == 'w'
-      i=0
-      reclist.each do |record|
-        puts i+=1
-        output = "#{record.print_output(custom_headers)}\n"
-       # _end = record.ss_match.first.most_recent.first
-        s = record.ss_match.first&.most_recent_data()
-        begin
-          if s && s[:mode] == 'current'
-            current << output
-          else
-            noncurrent << output
-          end
-        rescue
-          return record
-        end
+  File.open(ofile, mode) do |outfile|
+    outfile << headers.join("\t")+"\n" if mode == 'w'
+    i=0
+    reclist.each do |record|
+      puts i+=1
+      output = "#{record.print_output(custom_headers)}\n"
+      # _end = record.ss_match.first.most_recent.first
+      #s = record.ss_match.first&.most_recent_data()
+      begin
+        outfile << output
+      rescue
+        return record
       end
     end
   end
@@ -148,9 +140,7 @@ sersol_by_ssj = {}
 sersol_records.each do |entry|
   unless entry.blacklisted
     ssj = entry.ssj
-    if not sersol_by_ssj.include?(ssj)
-      sersol_by_ssj[ssj] = SersolTitle.new(ssj)
-    end
+    sersol_by_ssj[ssj] = SersolTitle.new(ssj) unless sersol_by_ssj.include?(ssj)
     sersol_by_ssj[ssj].entries << entry
   end
 end
@@ -184,121 +174,123 @@ omg_issns_mapping_to_different_ssjs =
 # IMPORT MIL RECORDS
 #
 mil_records = []
-=begin
-mil_headers = ''
-File.open(MIL_EXPORT_FILE, 'rb:bom|utf-16:utf-8') do |f|
-  lines = f.read.split("\n")
-  mil_headers = lines.delete_at(0).rstrip.downcase.split("\t")
-  lines.each do |r|
-    m = MilEntry.new(Hash[mil_headers.zip(r.rstrip.split("\t"))])
-    m.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-    mil_records << m
+if process_sierra
+  mil_headers = ''
+  File.open(MIL_EXPORT_FILE, 'rb:bom|utf-16:utf-8') do |f|
+    lines = f.read.split("\n")
+    mil_headers = lines.delete_at(0).rstrip.downcase.split("\t")
+    lines.each do |r|
+      m = MilEntry.new(Hash[mil_headers.zip(r.rstrip.split("\t"))])
+      m.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+      mil_records << m
+    end
   end
-end
 
-#
-# use fallback methods to find matches for unmatched records
-#
-no_matches = mil_records.select { |r| r.match_count == 0 }
-prev_scraped = {}
-File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
+  #
+  # use fallback methods to find matches for unmatched records
+  #
+  no_matches = mil_records.select { |r| r.match_count == 0 }
+  prev_scraped = {}
+  File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
 
-i=0
-no_matches.each do |mrec|
-  puts "checking record #{i.to_s} of #{no_matches.length}"
-  # use previously scraped issns if found
-  if prev_scraped.include?(mrec._001)
-    puts "used scraped issns on file"    
-    mrec.scraped_issns = prev_scraped[mrec._001]
-  # otherwise scrape issns
-  else
-    puts "checking worldcat"
-    mrec.scrape_issns(api)
-    prev_scraped[mrec._001] = mrec.scraped_issns.to_a
-  end
-  mrec.add_scraped_issns
-  mrec.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-  if mrec.match_count >= 1
-    mrec.note += 'matched using issns from worldcat lookup; '
-  # try matching on 022y if still no matches
-  else
-    mrec.add_022y
+  i=0
+  no_matches.each do |mrec|
+    puts "checking record #{i.to_s} of #{no_matches.length}"
+    # use previously scraped issns if found
+    if prev_scraped.include?(mrec._001)
+      puts "used scraped issns on file"
+      mrec.scraped_issns = prev_scraped[mrec._001]
+    # otherwise scrape issns
+    else
+      puts "checking worldcat"
+      mrec.scrape_issns(api)
+      prev_scraped[mrec._001] = mrec.scraped_issns.to_a
+    end
+    mrec.add_scraped_issns
     mrec.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-    mrec.note += 'matched using 022|y; ' if mrec.match_count >= 1
-  end
-  i += 1
-end
-# write scraped issns to file
-File.open(SCRAPED_ISSN_FILE, 'w') do |f|
-  f.write(prev_scraped.to_json)
-end
-
-matched = mil_records.select{ |r| r.match_count <= 1}
-extra_matches = mil_records.select{ |r| r.match_count > 1}
-missing = mil_records - (matched + extra_matches)
-
-export_results(reclist: matched, noncurrent_file: OUTPUT_NONCURRENT,
-               current_file: OUTPUT_CURRENT, output_headers: OUTPUT_HEADERS,
-               custom_headers: mil_headers, mode: 'w')
-
-i = 0
-File.open(EXTRAMATCH, 'w') do |f|
-  extra_matches.each do |record|
-    f.write(i.to_s + "\n")
-    f.write(record.print_extras(mil_headers)+"\n")
+    if mrec.match_count >= 1
+      mrec.note += 'matched using issns from worldcat lookup; '
+    # try matching on 022y if still no matches
+    else
+      mrec.add_022y
+      mrec.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+      mrec.note += 'matched using 022|y; ' if mrec.match_count >= 1
+    end
     i += 1
   end
-end
+  # write scraped issns to file
+  File.open(SCRAPED_ISSN_FILE, 'w') do |f|
+    f.write(prev_scraped.to_json)
+  end
 
-sorted_extras = []
-extra_matches.each do |record|
-  s = record.ss_match
-  s_sorted = s.to_a.sort_by { |s| [s.most_recent_data[:modevalue], s.most_recent_data[:comparator]]}.reverse
-  record.ss_match = s_sorted
-  sorted_extras << record
+  matched = mil_records.select{ |r| r.match_count <= 1}
+  extra_matches = mil_records.select{ |r| r.match_count > 1}
+  missing = mil_records - (matched + extra_matches)
+
+  export_results(reclist: matched, ofile: OUTPUT_SIERRA,
+                output_headers: OUTPUT_HEADERS,
+                custom_headers: mil_headers, mode: 'w')
+
+  i = 0
+  File.open(OUTPUT_SIERRA_EXTRAS, 'w') do |f|
+    extra_matches.each do |record|
+      f.write(i.to_s + "\n")
+      f.write(record.print_extras(mil_headers)+"\n")
+      i += 1
+    end
+  end
+
+  sorted_extras = []
+  extra_matches.each do |record|
+    s = record.ss_match
+    s_sorted = s.to_a.sort_by { |s| [s.most_recent_data[:modevalue], s.most_recent_data[:comparator]]}.reverse
+    record.ss_match = s_sorted
+    sorted_extras << record
+  end
+  extra_matches = nil
 end
-extra_matches = nil
-=end
 
 #
 # IMPORT TITLELIST RECORDS
 #
 titlelist_records = []
-titlelist_headers = ''
-File.open(TITLELIST_FILE, 'rb:bom|utf-16:utf-8') do |f|
-  lines = f.read.split("\n")
-  titlelist_headers  = lines.delete_at(0).rstrip.downcase.split("\t")
-  lines.each do |r|
-    w = TitlelistEntry.new(Hash[titlelist_headers.zip(r.rstrip.split("\t"))])
-    w.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-    titlelist_records << w
+if process_titlelist
+  titlelist_headers = ''
+  File.open(TITLELIST_FILE, 'rb:bom|utf-16:utf-8') do |f|
+    lines = f.read.split("\n")
+    titlelist_headers  = lines.delete_at(0).rstrip.downcase.split("\t")
+    lines.each do |r|
+      w = TitlelistEntry.new(Hash[titlelist_headers.zip(r.rstrip.split("\t"))])
+      w.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+      titlelist_records << w
+    end
   end
-end
 
-wmatched = titlelist_records.select { |r| r.match_count <= 1 }
-wextra_matches = titlelist_records.select { |r| r.match_count > 1 }
+  wmatched = titlelist_records.select { |r| r.match_count <= 1 }
+  wextra_matches = titlelist_records.select { |r| r.match_count > 1 }
 
-export_results(reclist: wmatched, noncurrent_file: OUTPUT_TITLELIST_NONCURRENT,
-  current_file: OUTPUT_TITLELIST_CURRENT, output_headers: OUTPUT_HEADERS,
-  custom_headers: titlelist_headers, mode: 'w')
+  export_results(reclist: wmatched, ofile: OUTPUT_TITLELIST,
+    output_headers: OUTPUT_HEADERS,
+    custom_headers: titlelist_headers, mode: 'w')
 
-i = 0
-File.open(OUTPUT_TITLELIST_EXTRAS, 'w') do |f|
+  i = 0
+  File.open(OUTPUT_TITLELIST_EXTRAS, 'w') do |f|
+    wextra_matches.each do |record|
+      f.write(i.to_s + "\n")
+      f.write(record.print_extras(titlelist_headers)+"\n")
+      i += 1
+    end
+  end
+
+  titlelist_sorted_extras = []
   wextra_matches.each do |record|
-    f.write(i.to_s + "\n")
-    f.write(record.print_extras(titlelist_headers)+"\n")
-    i += 1
+    s = record.ss_match
+    s_sorted = s.to_a.sort_by { |s| [s.most_recent_data[:modevalue], s.most_recent_data[:comparator]]}.reverse
+    record.ss_match = s_sorted
+    titlelist_sorted_extras << record
   end
+  wextra_matches = nil
 end
-
-titlelist_sorted_extras = []
-wextra_matches.each do |record|
-  s = record.ss_match
-  s_sorted = s.to_a.sort_by { |s| [s.most_recent_data[:modevalue], s.most_recent_data[:comparator]]}.reverse
-  record.ss_match = s_sorted
-  titlelist_sorted_extras << record
-end
-wextra_matches = nil
 
 
 # RUN CHECKS
@@ -331,11 +323,11 @@ File.write('CHECK_ssjs_not_in_sersol_report.txt',
 
 raise(RuntimeError, "stop here if running as script")
 
-export_results(reclist: sorted_extras, noncurrent_file: OUTPUT_NONCURRENT,
-  current_file: OUTPUT_CURRENT, output_headers: OUTPUT_HEADERS,
+export_results(reclist: sorted_extras, ofile: OUTPUT_SIERRA,
+  output_headers: OUTPUT_HEADERS,
   custom_headers: mil_headers, mode: 'a')
 
-export_results(reclist: titlelist_sorted_extras, noncurrent_file: OUTPUT_TITLELIST_NONCURRENT,
-  current_file: OUTPUT_TITLELIST_CURRENT, output_headers: OUTPUT_HEADERS,
+export_results(reclist: titlelist_sorted_extras, ofile: OUTPUT_TITLELIST,
+  output_headers: OUTPUT_HEADERS,
   custom_headers: titlelist_headers, mode: 'a')
 
