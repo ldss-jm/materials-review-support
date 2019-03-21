@@ -1,15 +1,13 @@
 require 'date'
 require 'set'
 
-#sersol_file input needs to be tab-delim
+# sersol_file input needs to be tab-delim
 
 class SersolEntry
-
   # A SerSol resource / access point. Is associated with a particular
   # SersolTitle (ssj/title)
 
-  attr_reader :ssj, :title, :issn, :eissn, :enddate_descriptor, :enddate,
-              :end_mode, :resource
+  attr_reader :ssj, :title, :issn, :eissn, :enddate_descriptor, :resource
 
   def initialize(hsh)
     @ssj = hsh['id']
@@ -70,7 +68,7 @@ class SersolEntry
                                       gsub('Winter ', '12/20/').
                                       gsub('Spring ', '3/20/').
                                       gsub('Summer ', '6/20/')
-    return Date.strptime(date_helper, '%m/%d/%Y')
+    Date.strptime(date_helper, '%m/%d/%Y')
   rescue ArgumentError
     begin
       return Date.strptime(@enddate_descriptor, '%Y')
@@ -82,19 +80,18 @@ class SersolEntry
   # Returns current/embargo/fixed.
   # JSTOR dates are always considered to be embargos.
   def end_mode
-    return @endmode if @endmode
-    if @enddate_descriptor == '' || @enddate_descriptor.nil?
-      @endmode = 'current'
-    elsif @enddate_descriptor.downcase.include?('current')
-      @endmode = 'current'
-    elsif @enddate_descriptor.include?('ago')
-      @endmode = 'embargo'
-    elsif @resource.downcase.include?('jstor')
-      @endmode = 'embargo'
-    else
-      @endmode = 'fixed'
-    end
-    @endmode
+    @end_mode ||=
+      if @enddate_descriptor == '' || @enddate_descriptor.nil?
+        'current'
+      elsif @enddate_descriptor.downcase.include?('current')
+        'current'
+      elsif @enddate_descriptor.include?('ago')
+        'embargo'
+      elsif @resource.downcase.include?('jstor')
+        'embargo'
+      else
+        'fixed'
+      end
   end
 
   # Converts embargo enddates into 'x year(s) ago' format
@@ -102,11 +99,9 @@ class SersolEntry
     return unless end_mode == 'embargo'
     return @enddate_descriptor if @enddate_descriptor.include?('ago')
     years = (Time.now.year - enddate.year)
-    if years == 1
-      return years.to_s + ' year ago'
-    else
-      return years.to_s + ' years ago'
-    end
+
+    return years.to_s + ' year ago' if years == 1
+    years.to_s + ' years ago'
   end
 
   def embargo_comparator
@@ -119,13 +114,11 @@ class SersolEntry
            when /day/ then 1
            end
     quantity = @enddate_descriptor.match(/^[^0-9]*([0-9]*)/)[1]
-    return Date.today - (days * quantity.to_i)
+    Date.today - (days * quantity.to_i)
   end
-
 end
 
 class SersolTitle
-
   # A unique title (generally a distinct ssj). Collects any
   # SersolEntry objects (resources / access points) for the title. Primarily
   # to compare the SersolEntries and find the "best" one.
@@ -166,16 +159,16 @@ class SersolTitle
   # only free (i.e. not paid) entries.
   def free(entries = @entries)
     e = entries.dup
-    e.select! { |x| x.free? }
-    return e unless e.empty?
+    e.select!(&:free?)
+    e unless e.empty?
   end
 
   # Filters the SersolTitle's entries (or provided list of entries) to
   # only free (i.e. not free) entries.
   def paid(entries = @entries)
     e = entries.dup
-    e.reject! { |x| x.free? }
-    return e unless e.empty?
+    e.reject!(&:free?)
+    e unless e.empty?
   end
 
   # Provides a list of SerSolEntries with the most-recent end
@@ -185,14 +178,14 @@ class SersolTitle
       most_recent = current(entries)
     elsif embargo(entries)
       ends = embargo(entries)
-      a_max_entry = ends.max { |a,b| a.embargo_comparator <=> b.embargo_comparator }
+      a_max_entry = ends.max_by(&:embargo_comparator)
       max_value = a_max_entry.embargo_comparator
       most_recent = ends.select { |x| x.embargo_comparator == max_value }
     elsif fixed(entries)
       ends = fixed(entries)
-      a_max_entry = ends.max { |a,b| a.enddate <=> b.enddate }
+      a_max_entry = ends.max_by(&:enddate)
       max_value = a_max_entry.enddate
-      most_recent = ends.select { |x| x.enddate == max_value}
+      most_recent = ends.select { |x| x.enddate == max_value }
     end
     most_recent
   end
@@ -208,11 +201,9 @@ class SersolTitle
   end
 
   def most_recent_data(entries = @entries)
-    modevalue = { 'current' => 3, 'embargo' => 2, 'fixed' => 1 }
+    modevalue = {'current' => 3, 'embargo' => 2, 'fixed' => 1}
     best = most_recent(entries)&.first # best or tied for best
-    unless best
-      return {mode: nil, modevalue: nil, comparator: nil, date: nil}
-    end
+    return {mode: nil, modevalue: nil, comparator: nil, date: nil} unless best
     case best.end_mode
     when 'current'
       mode = 'current'
@@ -226,16 +217,16 @@ class SersolTitle
       comparator = best.enddate
     end
     date ||= comparator
-    return {mode: mode, modevalue: modevalue[mode], comparator: comparator, date: date}
+    {mode: mode, modevalue: modevalue[mode], comparator: comparator, date: date}
   end
 
-  def all_issns()
-    issns = Set.new()
+  def all_issns
+    issns = Set.new
     @entries.each do |entry|
       issns << entry.issn
       issns << entry.eissn
     end
-    return issns.delete("")
+    return issns.delete('')
   end
 
   def self.out_data(sersol, entries = @entries)
@@ -249,10 +240,9 @@ class SersolTitle
     ]
   end
 
-  def self.out_headers(suffix=nil)
-    h = ['best_type', 'best_data', 'best_resources']
+  def self.out_headers(suffix = nil)
+    h = %w[best_type best_data best_resources]
     h.map! { |s| "#{s}_#{suffix}" } if suffix
     h
   end
-
 end

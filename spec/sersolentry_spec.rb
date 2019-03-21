@@ -1,10 +1,7 @@
 require_relative '../sersol.rb'
 
-
 RSpec.describe SersolEntry do
-
   describe 'blacklisted?' do
-
     ss1 = SersolEntry.new('include/exclude' => 'exclude')
     it 'true for records to be excluded' do
       expect(ss1.blacklisted?).to be true
@@ -12,12 +9,11 @@ RSpec.describe SersolEntry do
 
     ss2 = SersolEntry.new('include/exclude' => '')
     it 'raises error if whitelist not yes/no' do
-      expect{ss2.blacklisted?}.to raise_error(RuntimeError)
+      expect { ss2.blacklisted? }.to raise_error(RuntimeError)
     end
   end
 
   describe 'enddate' do
-
     date1 = Date.strptime('1/1/2017', '%m/%d/%Y')
     date2 = Date.strptime('9/20/2017', '%m/%d/%Y')
 
@@ -39,11 +35,9 @@ RSpec.describe SersolEntry do
     it 'includes error note and original value on failure' do
       expect(ss3.enddate).to eq('error: august')
     end
-
   end
 
   describe 'end_mode' do
-
     ss1 = SersolEntry.new('enddate' => '', 'resource' => '')
     it 'is current when descriptor is empty' do
       expect(ss1.end_mode).to eq('current')
@@ -71,7 +65,6 @@ RSpec.describe SersolEntry do
   end
 
   describe 'embargo_text' do
-
     ss1 = SersolEntry.new('enddate' => '2015', 'resource' => 'jstor')
     it 'operates BASED ON 2019 AS CURRENT YEAR' do
       expect(ss1.embargo_text).to eq('4 years ago')
@@ -90,7 +83,6 @@ RSpec.describe SersolEntry do
   end
 
   describe 'embargo_comparator' do
-
     today = Date.today
 
     ss1 = SersolEntry.new('enddate' => '9/20/2017', 'resource' => 'jstor')
@@ -101,36 +93,33 @@ RSpec.describe SersolEntry do
 
     ss2 = SersolEntry.new('enddate' => '1 year ago')
     it 'says 1 year ago was the date 365 days ago' do
-      expect(ss2.embargo_comparator).to eq(today-365)
+      expect(ss2.embargo_comparator).to eq(today - 365)
     end
 
     ss3 = SersolEntry.new('enddate' => '10 months ago')
     it 'counts months as 30 days' do
-      expect(ss3.embargo_comparator).to eq(today-300)
+      expect(ss3.embargo_comparator).to eq(today - 300)
     end
 
     ss4 = SersolEntry.new('enddate' => '4 weeks ago')
     it 'counts weeks as 7 days' do
-      expect(ss4.embargo_comparator).to eq(today-28)
+      expect(ss4.embargo_comparator).to eq(today - 28)
     end
 
     ss5 = SersolEntry.new('enddate' => '15 days ago')
     it 'counts days as...days' do
-      expect(ss5.embargo_comparator).to eq(today-15)
+      expect(ss5.embargo_comparator).to eq(today - 15)
     end
   end
 end
 
-
 RSpec.describe SersolTitle do
-
   sst1 = SersolTitle.new('1')
   ssc = SersolEntry.new('enddate' => '')
   sse = SersolEntry.new('enddate' => '1 year ago')
   ssf = SersolEntry.new('enddate' => '2000', 'resource' => '')
   sst1.entries = [ssc, sse, ssf]
   sst2 = SersolTitle.new('2')
-
 
   describe 'current' do
     it 'returns current access points' do
@@ -161,7 +150,6 @@ RSpec.describe SersolTitle do
       expect(sst2.fixed).to be_nil
     end
   end
-
 
   describe 'most_recent' do
     ssc2 = SersolEntry.new('enddate' => '')
@@ -198,5 +186,4 @@ RSpec.describe SersolTitle do
 
   describe 'all_issns' do
   end
-
 end

@@ -1,7 +1,6 @@
 require 'set'
 
 class NotSersolEntry
-
   # Sierra (or titlelist/other) records for which we'd like to find
   # matching SersolTitle(s). Subclassed by the type of record.
 
@@ -13,21 +12,19 @@ class NotSersolEntry
       if sersol_by_ssj.include?(@ssj)
         @ss_match << sersol_by_ssj[@ssj]
         @ss_match_by << [@ssj, sersol_by_ssj[@ssj]]
-      else
-        unless blacklist.include?(@ssj)
-          $ssjs_not_in_sersol_report << @ssj
-          unless @note.include?('ssj not found in sersol report; ')
-            @note += 'ssj not found in sersol report; '
-          end
+      elsif !blacklist.include?(@ssj)
+        $ssjs_not_in_sersol_report << @ssj
+        unless @note.include?('ssj not found in sersol report; ')
+          @note += 'ssj not found in sersol report; '
         end
       end
     end
+
     all_issns.each do |issn|
-      if issn_to_sersol.include?(issn)
-        issn_to_sersol[issn].each do |ss_by_issn|
-          @ss_match << ss_by_issn
-          @ss_match_by << [issn, ss_by_issn]
-        end
+      next unless issn_to_sersol.include?(issn)
+      issn_to_sersol[issn].each do |ss_by_issn|
+        @ss_match << ss_by_issn
+        @ss_match_by << [issn, ss_by_issn]
       end
     end
   end
@@ -54,21 +51,18 @@ class NotSersolEntry
   def print_output(headers)
     output = headers.map { |h| @record[h] }
     output << @ss_match.length
-    if @ss_match.length == 0
-      if all_issns.empty? and not @ssj
-        @note += 'Had no ssj/issn to make match; '
-      end
+    if @ss_match.empty?
+      @note += 'Had no ssj/issn to make match; ' if all_issns.empty? && !@ssj
       output << @note
     else
       sersol = @ss_match.first
       output += [@note,
-                all_issns.to_a.join(' | '),
-                sersol.ssj,
-                sersol.entries.first.title,
-                ]
+                 all_issns.to_a.join(' | '),
+                 sersol.ssj,
+                 sersol.entries.first.title]
       output += SersolTitle.out_data(sersol, sersol.entries) # full data
-      #output += SersolTitle.out_data(sersol, sersol.paid) # paid data
-      #output += SersolTitle.out_data(sersol, sersol.free) # free data
+      # output += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      # output += SersolTitle.out_data(sersol, sersol.free) # free data
     end
     output.join("\t")
   end
@@ -80,7 +74,7 @@ class NotSersolEntry
     sort_list = @ss_match.map do |ssj|
       [ssj.most_recent_data[:modevalue], ssj.most_recent_data[:comparator], ssj]
     end
-    sort_list.sort_by { |a| [ a[0], a[1] ] }.reverse.each do |title|
+    sort_list.sort_by { |a| [a[0], a[1]] }.reverse_each do |title|
       sersol = title[2]
       ss_line = [
         '',
@@ -96,17 +90,15 @@ class NotSersolEntry
         sersol.entries[0].title
       ]
       ss_line += SersolTitle.out_data(sersol, sersol.entries) # full data again
-      #ss_line += SersolTitle.out_data(sersol, sersol.paid) # paid data
-      #ss_line += SersolTitle.out_data(sersol, sersol.free) # free data
+      # ss_line += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      # ss_line += SersolTitle.out_data(sersol, sersol.free) # free data
       output << ss_line.join("\t")
     end
-    return output.join("\n") + "\n\n"
+    output.join("\n") + "\n\n"
   end
 end
 
-
 class MilEntry < NotSersolEntry
-
   attr_accessor :all_issns
 
   def initialize(hsh)
@@ -117,8 +109,8 @@ class MilEntry < NotSersolEntry
     @_022a = hsh['022|a'].gsub(/\s\s+/, ' ').split(' ')
     @_022L = hsh['022|l'].gsub(/\s\s+/, ' ').split(' ')
     @_022y = hsh['022|y'].gsub(/\s\s+/, ' ').split(' ')
-    @_776 = hsh['776|x'].split(";")
-    @ss_match = Set.new()
+    @_776 = hsh['776|x'].split(';')
+    @ss_match = Set.new
     @ss_match_by = []
     @ssj = @_001 if @_001.start_with?('ss')
   end
@@ -140,25 +132,21 @@ class MilEntry < NotSersolEntry
     @all_issns << @_022y unless @_022y.empty?
   end
 
-  #scrapes 776|x and 022|a, 022|L, but not 022|y
+  # scrapes 776|x and 022|a, 022|L, but not 022|y
   def scrape_issns(api)
     return @scraped_issns if @scraped_issns
-    return nil if @_001.empty? || @_001 !~ (/^[0-9]+/)
+    return nil if @_001.empty? || @_001 !~ /^[0-9]+/
     puts "001: #{@_001}"
     api.read_bib(@_001)
     issns = Set.new
-    if api.bib.fields('776')
-      api.bib.fields('776').each do |field|
-        field.subfields.each do |sf|
-          issns << sf.value if sf.code == 'x'
-        end
+    api.bib&.fields('776')&.each do |field|
+      field.subfields.each do |sf|
+        issns << sf.value if sf.code == 'x'
       end
     end
-    if api.bib.fields('022')
-      api.bib.fields('022').each do |field|
-        field.subfields.each do |sf|
-          issns << sf.value if ['a', 'l'].include?(sf.code)
-        end
+    api.bib&.fields('022')&.each do |field|
+      field.subfields.each do |sf|
+        issns << sf.value if %w[a l].include?(sf.code)
       end
     end
     @scraped_issns = issns
@@ -166,16 +154,15 @@ class MilEntry < NotSersolEntry
 end
 
 class TitlelistEntry < NotSersolEntry
-
   def initialize(hsh)
     @record = hsh
     @note = ''
     @title = hsh['title']
-    #@issn = hsh['issn']      # srp17
-    #@eissn = hsh['e-issn']   # srp17
-    @issn = filter_bad_issns(hsh['issn1'].strip)
-    @eissn = filter_bad_issns(hsh['issn2'].strip)
-    @ss_match = Set.new()
+    # @issn = hsh['issn']      # srp17
+    # @eissn = hsh['e-issn']   # srp17
+    @issn = filter_bad_issns(hsh['issn1'].to_s.strip)
+    @eissn = filter_bad_issns(hsh['issn2'].to_s.strip)
+    @ss_match = Set.new
     @ss_match_by = []
     @ssj = hsh['ssj#'] if hsh['ssj#']&.start_with?('ss')
   end
@@ -183,5 +170,4 @@ class TitlelistEntry < NotSersolEntry
   def all_issns
     [@issn, @eissn].uniq.compact
   end
-
 end

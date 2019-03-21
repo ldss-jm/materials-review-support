@@ -2,7 +2,7 @@ require_relative '../nonsersol.rb'
 require_relative '../../worldcat_api_and_wcm/metadata_api.rb'
 
 RSpec.describe MilEntry do
-  let(:api) { MetadataAPI.new('../worldcat_api_and_wcm/kms.metadata.secret')}
+  let(:api) { MetadataAPI.new('../worldcat_api_and_wcm/kms.metadata.secret') }
 
   class MilEntry
     attr_reader :_022a, :_022L, :_022y, :_776
@@ -18,7 +18,6 @@ RSpec.describe MilEntry do
   s = MilEntry.new(data)
 
   describe 'initialize' do
-
     it 'sets record as original hash' do
       expect(s.record).to eq(data)
     end
@@ -35,7 +34,7 @@ RSpec.describe MilEntry do
       expect(s._022a).to be_an(Array)
     end
 
-    it '@_022[x] set from space-delimited 022|[x] string'do
+    it '@_022[x] set from space-delimited 022|[x] string' do
       expect(s._022L).to eq(['0000-022La', '0000-022Lb'])
     end
 
@@ -51,13 +50,13 @@ RSpec.describe MilEntry do
       expect(s.ssj).to be_nil
     end
 
-    s2 = MilEntry.new({'record #(order)' => 'o15841212',
-                       '245' => 'The daily advance',
-                       '1' => 'ss13380767',
-                       '022|a' => '0000-022a',
-                       '022|l' => '0000-022La 0000-022Lb',
-                       '022|y' => '0000-022ya  0000-022yb',
-                       '776|x' => '0000-776xa;0000-776xb'})
+    s2 = MilEntry.new('record #(order)' => 'o15841212',
+                      '245' => 'The daily advance',
+                      '1' => 'ss13380767',
+                      '022|a' => '0000-022a',
+                      '022|l' => '0000-022La 0000-022Lb',
+                      '022|y' => '0000-022ya  0000-022yb',
+                      '776|x' => '0000-776xa;0000-776xb')
     it 'sets @ssj when 001 begins \'ss\'' do
       expect(s2.ssj).to eq(s2._001)
     end
@@ -68,7 +67,6 @@ RSpec.describe MilEntry do
   end
 
   describe 'gen_all_issns' do
-
     s.gen_all_issns
     it 'sets all_issns as a set' do
       expect(s.all_issns).to be_an(Set)
