@@ -18,17 +18,17 @@ class SersolEntry
     @enddate_descriptor = hsh['enddate']
     @resource = hsh['resource']
     @url = hsh['url']
-    @whitelist_data = hsh['include/exclude']
-    @free_data = hsh['freely available']
+    @whitelist_data = hsh['include as alt-access point?']
+    @free_data = hsh['freely avail?']
   end
 
   # true when this is a resource E-res Acq does not want to be considered
   # as an alt-access point
   def blacklisted?
     case @whitelist_data&.downcase
-    when 'exclude'
+    when 'no'
       true
-    when 'include'
+    when 'yes'
       false
     else
       raise "invalid whitelist value: #{@whitelist_data}"
@@ -40,9 +40,9 @@ class SersolEntry
   # free/paid are the only possible values.
   def free?
     case @free_data&.downcase
-    when 'free'
+    when 'yes'
       true
-    when 'paid'
+    when 'no'
       false
     else
       raise 'status is neither free nor paid'
@@ -150,6 +150,7 @@ class SersolTitle
   end
 
   def mode_filter(mode, entries)
+    return unless entries
     e = entries.dup
     e.select! { |x| x.end_mode == mode }
     return e unless e.empty?
@@ -158,6 +159,7 @@ class SersolTitle
   # Filters the SersolTitle's entries (or provided list of entries) to
   # only free (i.e. not paid) entries.
   def free(entries = @entries)
+    return unless entries
     e = entries.dup
     e.select!(&:free?)
     e unless e.empty?
@@ -166,6 +168,7 @@ class SersolTitle
   # Filters the SersolTitle's entries (or provided list of entries) to
   # only free (i.e. not free) entries.
   def paid(entries = @entries)
+    return unless entries
     e = entries.dup
     e.reject!(&:free?)
     e unless e.empty?

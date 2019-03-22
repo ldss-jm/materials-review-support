@@ -10,7 +10,7 @@ RSpec.describe MilEntry do
 
   data = {'record #(order)' => 'o15841212',
           '245' => 'The daily advance',
-          '1' => '13380767',
+          '001' => '13380767',
           '022|a' => '0000-022a',
           '022|l' => '0000-022La 0000-022Lb',
           '022|y' => '0000-022ya  0000-022yb',
@@ -96,7 +96,7 @@ RSpec.describe MilEntry do
     data3 = {
       'record #(order)' => 'o15841212',
       '245' => 'The daily advance',
-      '1' => '812282',
+      '001' => '812282',
       '022|a' => '0000-022a',
       '022|l' => '0000-022La 0000-022Lb',
       '022|y' => '0000-022ya  0000-022yb',

@@ -47,7 +47,8 @@ secretfile = (File.dirname(__FILE__).to_s +
               '/../worldcat_api_and_wcm/kms.metadata.secret')
 api = MetadataAPI.new(secretfile)
 
-process_sierra = false
+
+process_sierra = true
 process_titlelist = true
 
 # input files  **tab-delim, utf16, no newlines in data
@@ -107,6 +108,14 @@ end
 sersol_records = []
 blacklist = []
 
+# Some portion of the following "read the sersol csv" code triggers some
+# problem within the worldcat api code. If the api authenticates prior
+# to the code below, the api will work fine at any point. If the api
+# doesn't authenticate until after this code, authentication will fail.
+# Running api.test_auth here is solely to get the api to authenticate prior
+# to this code.
+api.test_auth
+
 sersol_csv = CSV.open(SERSOL_FILE,
                       'rb:bom|utf-16:utf-8',
                       # 'rb:utf-8',
@@ -156,26 +165,36 @@ end
 mil_records = []
 if process_sierra
   mil_headers = ''
-  File.open(MIL_EXPORT_FILE, 'rb:bom|utf-16:utf-8') do |f|
-    lines = f.read.split("\n")
-    mil_headers = lines.delete_at(0).rstrip.downcase.split("\t")
-    lines.each do |r|
-      m = MilEntry.new(Hash[mil_headers.zip(r.rstrip.split("\t"))])
-      m.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-      mil_records << m
-    end
+  mil_csv = CSV.open(MIL_EXPORT_FILE,
+                           'rb:bom|utf-16:utf-8',
+                           # 'rb:utf-8',
+                           headers: true,
+                           header_converters: :downcase,
+                           col_sep: "\t",
+                           quote_char: "\x00")
+  mil_csv.each do |r|
+    m = MilEntry.new(r.to_h)
+    m.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+    mil_records << m
   end
+  mil_headers = mil_csv.headers
+  mil_csv.close
 
   #
   # use fallback methods to find matches for unmatched records
   #
   no_matches = mil_records.select { |r| r.match_count.zero? }
-  prev_scraped = ''
-  File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
+
+  begin
+    File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
+  rescue Errno::ENOENT # prev_scraped file does not exist
+    prev_scraped = {}
+  end
 
   i = 0
   no_matches.each do |mrec|
     puts "checking record #{i} of #{no_matches.length}"
+    puts mrec._001
     # use previously scraped issns if found
     if prev_scraped.include?(mrec._001)
       puts 'used scraped issns on file'
@@ -292,7 +311,7 @@ all_end_date_descriptors = []
   end
 end
 File.write('CHECK_used_date_descriptors.txt',
-           Set.new(all_end_date_descriptors).to_a.join("\n"))
+           Set.new(all_end_date_descriptors.compact.sort).to_a.join("\n"))
 
 # It's odd to have ssj's in Sierra/titlelist that aren't tracked
 File.write('CHECK_ssjs_not_in_sersol_report.txt',

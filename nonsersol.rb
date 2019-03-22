@@ -60,9 +60,9 @@ class NotSersolEntry
                  all_issns.to_a.join(' | '),
                  sersol.ssj,
                  sersol.entries.first.title]
-      output += SersolTitle.out_data(sersol, sersol.entries) # full data
-      # output += SersolTitle.out_data(sersol, sersol.paid) # paid data
-      # output += SersolTitle.out_data(sersol, sersol.free) # free data
+      # output += SersolTitle.out_data(sersol, sersol.entries) # full data
+      output += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      output += SersolTitle.out_data(sersol, sersol.free) # free data
     end
     output.join("\t")
   end
@@ -89,9 +89,9 @@ class NotSersolEntry
         sersol.ssj,
         sersol.entries[0].title
       ]
-      ss_line += SersolTitle.out_data(sersol, sersol.entries) # full data again
-      # ss_line += SersolTitle.out_data(sersol, sersol.paid) # paid data
-      # ss_line += SersolTitle.out_data(sersol, sersol.free) # free data
+      # ss_line += SersolTitle.out_data(sersol, sersol.entries) # full data again
+      ss_line += SersolTitle.out_data(sersol, sersol.paid) # paid data
+      ss_line += SersolTitle.out_data(sersol, sersol.free) # free data
       output << ss_line.join("\t")
     end
     output.join("\n") + "\n\n"
@@ -105,14 +105,24 @@ class MilEntry < NotSersolEntry
     @record = hsh
     @note = ''
     @title = hsh['245']
-    @_001 = hsh['1']
-    @_022a = hsh['022|a'].gsub(/\s\s+/, ' ').split(' ')
-    @_022L = hsh['022|l'].gsub(/\s\s+/, ' ').split(' ')
-    @_022y = hsh['022|y'].gsub(/\s\s+/, ' ').split(' ')
-    @_776 = hsh['776|x'].split(';')
+    @_001 = hsh['001']
+    @_022a = clean_incoming_isbns(hsh['022|a'])&.split(' ')
+    @_022L = clean_incoming_isbns(hsh['022|l'])&.split(' ')
+    @_022y = clean_incoming_isbns(hsh['022|y'])&.split(' ')
+    @_776 = clean_incoming_isbns(hsh['776|x'])&.split(' ')
     @ss_match = Set.new
     @ss_match_by = []
-    @ssj = @_001 if @_001.start_with?('ss')
+    @ssj = @_001 if @_001&.start_with?('ss')
+  end
+
+  # collapse consecutive whitespace and double-quotes from isbn strings]
+  # isbn strings resemble: 0098-9053
+  #                    or: 0098-9053 "0013-9947"
+  def clean_incoming_isbns(isbn_string)
+    return unless isbn_string
+    isbn_string.tr('"', ' ').
+                tr(';', ' ').
+                gsub(/\s\s+/, ' ')
   end
 
   def all_issns
@@ -120,7 +130,7 @@ class MilEntry < NotSersolEntry
   end
 
   def gen_all_issns
-    @all_issns = Set.new([@_022a, @_022L, @_776].flatten)
+    @all_issns = Set.new([@_022a, @_022L, @_776].flatten.compact)
   end
 
   def add_scraped_issns
@@ -129,13 +139,14 @@ class MilEntry < NotSersolEntry
   end
 
   def add_022y
-    @all_issns << @_022y unless @_022y.empty?
+    return unless @_022y
+     @_022y.each { |i| @all_issns << i }
   end
 
   # scrapes 776|x and 022|a, 022|L, but not 022|y
   def scrape_issns(api)
     return @scraped_issns if @scraped_issns
-    return nil if @_001.empty? || @_001 !~ /^[0-9]+/
+    return nil if @_001.nil? || @_001 !~ /^[0-9]+/
     puts "001: #{@_001}"
     api.read_bib(@_001)
     issns = Set.new
