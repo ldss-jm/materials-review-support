@@ -185,11 +185,12 @@ if process_sierra
   #
   no_matches = mil_records.select { |r| r.match_count.zero? }
 
-  begin
-    File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
-  rescue Errno::ENOENT # prev_scraped file does not exist
-    prev_scraped = {}
-  end
+  prev_scraped =
+    begin
+      File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
+    rescue Errno::ENOENT # prev_scraped file does not exist
+      {}
+    end
 
   i = 0
   no_matches.each do |mrec|
