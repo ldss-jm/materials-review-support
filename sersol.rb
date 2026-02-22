@@ -18,8 +18,8 @@ class SersolEntry
     @enddate_descriptor = hsh['enddate']
     @resource = hsh['resource']
     @url = hsh['url']
-    @whitelist_data = hsh['include as alt-access point?']
-    @free_data = hsh['freely avail?']
+    @whitelist_data = hsh['include as alt-access point?'] || 'yes'
+    @free_data = hsh['freely avail?'] || 'no'
   end
 
   # true when this is a resource E-res Acq does not want to be considered
