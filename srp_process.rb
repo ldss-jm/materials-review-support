@@ -2,15 +2,17 @@ require 'csv'
 require 'json'
 require_relative 'sersol'
 require_relative 'nonsersol'
-load '../worldcat_api_and_wcm/metadata_api.rb'
 
-# Input: (tab-delim, utf-16, no newlines in data)
-#   set of sersol records
-#   set(s) of non-sersol records (e.g. Sierra recs, publisher title list recs)
+# Input:
+#   - set of sersol records (utf16 csv)
+#     - sersol provided in 2026 as utf16 csv (previously was tsv). If received
+#       in multiple parts, cat into one file (removing repeated header lines)
+#   - set of sierra records (utf8 tsv)
+#     - disallow newlines in data
+#   - (optional) set of titlelist records (utf16 tsv)
 #
 # Matches non-sersol records to sersol records by ssj or good issns
 # For Sierra records, if no matches:
-#   scrapes worldcat api for issns to match
 #   if still no matches, tries to match using Sierra 022|y
 # Writes recs with best current resource to current output file
 # Writes recs with best noncurrent resource (incl nothing when no matches) to
@@ -43,17 +45,13 @@ load '../worldcat_api_and_wcm/metadata_api.rb'
 # matches should be reviewed. 022|y leads to false positives and we got better
 # results looking up oclc nums in worldcat to match up w/ sersol report
 
-secretfile = (File.dirname(__FILE__).to_s +
-              '/../worldcat_api_and_wcm/kms.metadata.secret')
-api = MetadataAPI.new(secretfile)
-
 
 process_sierra = true
-process_titlelist = true
+process_titlelist = false
 
-# input files  **tab-delim, utf16, no newlines in data
-MIL_EXPORT_FILE = 'sierra.txt'.freeze
-SERSOL_FILE = 'sersol.txt'.freeze
+# input files:
+MIL_EXPORT_FILE = 'sierra.utf8.txt'.freeze
+SERSOL_FILE = 'sersol.csv'.freeze
 TITLELIST_FILE = 'titlelist.txt'.freeze
 
 # output files
@@ -84,7 +82,7 @@ def export_results(opt)
   custom_headers = opt[:custom_headers]
   mode = 'w' unless opt[:mode] == 'a'
   headers = custom_headers + output_headers
-  File.open(ofile, mode) do |outfile|
+  File.open(ofile, "#{mode}:utf-8", ) do |outfile|
     outfile << headers.join("\t") + "\n" if mode == 'w'
     i = 0
     reclist.each do |record|
@@ -94,7 +92,7 @@ def export_results(opt)
       # s = record.ss_match.first&.most_recent_data()
       begin
         outfile << output
-      rescue
+      rescue => e
         puts record
         raise e
       end
@@ -106,27 +104,16 @@ end
 # IMPORT SERSOL RECORDS
 #
 sersol_records = []
-blacklist = []
-
-# Some portion of the following "read the sersol csv" code triggers some
-# problem within the worldcat api code. If the api authenticates prior
-# to the code below, the api will work fine at any point. If the api
-# doesn't authenticate until after this code, authentication will fail.
-# Running api.test_auth here is solely to get the api to authenticate prior
-# to this code.
-api.test_auth
+exclude_list = []
 
 sersol_csv = CSV.open(SERSOL_FILE,
                       'rb:bom|utf-16:utf-8',
-                      # 'rb:utf-8',
                       headers: true,
-                      header_converters: :downcase,
-                      col_sep: "\t",
-                      quote_char: "\x00")
+                      header_converters: :downcase)
 sersol_csv.each do |r|
   sersol = SersolEntry.new(r.to_h)
-  if sersol.blacklisted?
-    blacklist << sersol.ssj
+  if sersol.excluded?
+    exclude_list << sersol.ssj
     next
   end
   sersol_records << sersol
@@ -137,7 +124,7 @@ sersol_csv.close
 # hash of sersoltitles by ssj#
 sersol_by_ssj = {}
 sersol_records.each do |entry|
-  next if entry.blacklisted?
+  next if entry.excluded?
   ssj = entry.ssj
   sersol_by_ssj[ssj] = SersolTitle.new(ssj) unless sersol_by_ssj.include?(ssj)
   sersol_by_ssj[ssj].entries << entry
@@ -166,15 +153,14 @@ mil_records = []
 if process_sierra
   mil_headers = ''
   mil_csv = CSV.open(MIL_EXPORT_FILE,
-                           'rb:bom|utf-16:utf-8',
-                           # 'rb:utf-8',
+                           'r:utf-8',
                            headers: true,
                            header_converters: :downcase,
                            col_sep: "\t",
                            quote_char: "\x00")
   mil_csv.each do |r|
     m = MilEntry.new(r.to_h)
-    m.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+    m.get_matches(sersol_by_ssj, issn_to_sersol, exclude_list)
     mil_records << m
   end
   mil_headers = mil_csv.headers
@@ -196,37 +182,20 @@ if process_sierra
   no_matches.each do |mrec|
     puts "checking record #{i} of #{no_matches.length}"
     puts mrec._001
-    # use previously scraped issns if found
-    if prev_scraped.include?(mrec._001)
-      puts 'used scraped issns on file'
-      mrec.scraped_issns = prev_scraped[mrec._001]
-    # otherwise scrape issns
-    else
-      puts 'checking worldcat'
-      mrec.scrape_issns(api)
-      prev_scraped[mrec._001] = mrec.scraped_issns.to_a
-    end
-    mrec.add_scraped_issns
-    mrec.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-    if mrec.match_count >= 1
-      mrec.note += 'matched using issns from worldcat lookup; '
-    # try matching on 022y if still no matches
-    else
-      mrec.add_022y
-      mrec.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
-      mrec.note += 'matched using 022|y; ' if mrec.match_count >= 1
-    end
+    mrec.add_022y
+    mrec.get_matches(sersol_by_ssj, issn_to_sersol, exclude_list)
+    mrec.note += 'matched using 022|y; ' if mrec.match_count >= 1
+
     i += 1
-  end
-  # write scraped issns to file
-  File.open(SCRAPED_ISSN_FILE, 'w') do |f|
-    f.write(prev_scraped.to_json)
   end
 
   matched = mil_records.select { |r| r.match_count <= 1 }
   extra_matches = mil_records.select { |r| r.match_count > 1 }
+  extra_matches.each do |record|
+    record.note += "check manually due to multiple matching sersol titles"
+  end
 
-  export_results(reclist: matched, ofile: OUTPUT_SIERRA,
+  export_results(reclist: matched + extra_matches, ofile: OUTPUT_SIERRA,
                  output_headers: OUTPUT_HEADERS,
                  custom_headers: mil_headers, mode: 'w')
 
@@ -266,7 +235,7 @@ if process_titlelist
                            quote_char: "\x00")
   titlelist_csv.each do |r|
     title = TitlelistEntry.new(r.to_h)
-    title.get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
+    title.get_matches(sersol_by_ssj, issn_to_sersol, exclude_list)
     titlelist_records << title
   end
   titlelist_headers = titlelist_csv.headers
@@ -274,8 +243,11 @@ if process_titlelist
 
   wmatched = titlelist_records.select { |r| r.match_count <= 1 }
   wextra_matches = titlelist_records.select { |r| r.match_count > 1 }
+  wextra_matches.each do |record|
+    record.note += "check manually due to multiple matching sersol titles"
+  end
 
-  export_results(reclist: wmatched, ofile: OUTPUT_TITLELIST,
+  export_results(reclist: wmatched + wextra_matches, ofile: OUTPUT_TITLELIST,
                  output_headers: OUTPUT_HEADERS,
                  custom_headers: titlelist_headers, mode: 'w')
 
@@ -317,24 +289,3 @@ File.write('CHECK_used_date_descriptors.txt',
 # It's odd to have ssj's in Sierra/titlelist that aren't tracked
 File.write('CHECK_ssjs_not_in_sersol_report.txt',
            Set.new($ssjs_not_in_sersol_report).to_a.join("\n"))
-
-# CORRECT MIL and TITLELIST EXTRAS
-#
-#  make any needed corrections to sorted_extras
-#  by using: delete_extra(sorted_extras, i)
-#  and:      delete_extra(titlelist_sorted_extras, i)
-# for any record where the first record was incorrect
-#
-#
-# then, when extras correct
-#
-
-raise(RuntimeError, 'stop here if running as script')
-
-export_results(reclist: sorted_extras, ofile: OUTPUT_SIERRA,
-               output_headers: OUTPUT_HEADERS,
-               custom_headers: mil_headers, mode: 'a')
-
-export_results(reclist: titlelist_sorted_extras, ofile: OUTPUT_TITLELIST,
-               output_headers: OUTPUT_HEADERS,
-               custom_headers: titlelist_headers, mode: 'a')

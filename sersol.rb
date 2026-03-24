@@ -18,20 +18,20 @@ class SersolEntry
     @enddate_descriptor = hsh['enddate']
     @resource = hsh['resource']
     @url = hsh['url']
-    @whitelist_data = hsh['include as alt-access point?'] || 'yes'
+    @allowlist_data = hsh['include as alt-access point?'] || 'yes'
     @free_data = hsh['freely avail?'] || 'no'
   end
 
   # true when this is a resource E-res Acq does not want to be considered
   # as an alt-access point
-  def blacklisted?
-    case @whitelist_data&.downcase
+  def excluded?
+    case @allowlist_data&.downcase
     when 'no'
       true
     when 'yes'
       false
     else
-      raise "invalid whitelist value: #{@whitelist_data}"
+      raise "invalid allowlist value: #{@allowlist_data}"
     end
   end
 
@@ -83,11 +83,11 @@ class SersolEntry
     @end_mode ||=
       if @enddate_descriptor == '' || @enddate_descriptor.nil?
         'current'
-      elsif @enddate_descriptor.downcase.include?('current')
+      elsif @enddate_descriptor&.downcase&.include?('current')
         'current'
-      elsif @enddate_descriptor.include?('ago')
+      elsif @enddate_descriptor&.include?('ago')
         'embargo'
-      elsif @resource.downcase.include?('jstor')
+      elsif @resource&.downcase&.include?('jstor')
         'embargo'
       else
         'fixed'
