@@ -1,0 +1,52 @@
+name: Ruby compatibility
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: Ruby ${{ matrix.ruby }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby:
+          - '3.3'
+          - '3.4'
+    env:
+      BUNDLE_FROZEN: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler: 2.5.23
+          bundler-cache: true
+      - name: Check syntax
+        run: |
+          bundle exec ruby -c sersol.rb
+          bundle exec ruby -c nonsersol.rb
+          bundle exec ruby -c srp_process.rb
+          bundle exec ruby -c spec/sersolentry_spec.rb
+          bundle exec ruby -c spec/milentry_spec.rb
+      - name: Load dependencies and classes
+        run: bundle exec ruby -I. -e "require 'csv'; require 'json'; require 'sersol'; require 'nonsersol'"
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_FROZEN: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler: 2.5.23
+          bundler-cache: true
+      - run: gem install bundler-audit --no-document
+      - run: bundle-audit check --update
