@@ -9,13 +9,12 @@ Take Sierra record list or other title list, find matching title from SerialsSol
 ### matching Sierra records
 
 * attempt to match using an ssj/ssib in an 001 and any issns in an 022|a, 022|L, or 776|x. A match is found when any of these match, not necessarily all of them.
-* if that fails we try to scrape other good issns from OCLC/worldcat and attempt to match using them.
-* if that too fails, we try any 022|y issns from Sierra.
+* if that fails, we try any 022|y issns from Sierra.
 
 ### matching titlelist records (e.g. Wiley)
 
 * we try to match using provided ssj, issn, and eissn
-* no oclc scraping or fallback issns
+* no fallback issns
 
 ### best resources
 
@@ -99,11 +98,10 @@ Unmodified, original Sierra/titlelist data
   any/all of the following that apply:
   * Had no ssj/issn to make match
   * ssj not found in sersol report
-  * matched using issns from worldcat lookup
   * matched using 022|y
 * all_issns
   * list of issns actually used to attempt matching
-  * so, excludes scraped or 022|y issns unless we had to resort to them
+  * so, excludes 022|y issns unless we had to resort to them
   * ' | ' delimited
 * matching_ssj
   * ssj/ssib for sersol matching title

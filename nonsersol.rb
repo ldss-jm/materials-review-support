@@ -5,7 +5,7 @@ class NotSersolEntry
   # matching SersolTitle(s). Subclassed by the type of record.
 
   attr_reader :title, :issn, :ssj, :all_issns, :_001, :record
-  attr_accessor :ss_match, :ss_match_by, :note, :scraped_issns
+  attr_accessor :ss_match, :ss_match_by, :note
 
   def get_matches(sersol_by_ssj, issn_to_sersol, blacklist)
     if @ssj
@@ -133,34 +133,9 @@ class MilEntry < NotSersolEntry
     @all_issns = Set.new([@_022a, @_022L, @_776].flatten.compact)
   end
 
-  def add_scraped_issns
-    return unless @scraped_issns
-    @all_issns += @scraped_issns
-  end
-
   def add_022y
     return unless @_022y
      @_022y.each { |i| @all_issns << i }
-  end
-
-  # scrapes 776|x and 022|a, 022|L, but not 022|y
-  def scrape_issns(api)
-    return @scraped_issns if @scraped_issns
-    return nil if @_001.nil? || @_001 !~ /^[0-9]+/
-    puts "001: #{@_001}"
-    api.read_bib(@_001)
-    issns = Set.new
-    api.bib&.fields('776')&.each do |field|
-      field.subfields.each do |sf|
-        issns << sf.value if sf.code == 'x'
-      end
-    end
-    api.bib&.fields('022')&.each do |field|
-      field.subfields.each do |sf|
-        issns << sf.value if %w[a l].include?(sf.code)
-      end
-    end
-    @scraped_issns = issns
   end
 end
 

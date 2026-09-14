@@ -34,7 +34,7 @@ jobs:
           bundle exec ruby -c spec/sersolentry_spec.rb
           bundle exec ruby -c spec/milentry_spec.rb
       - name: Load dependencies and classes
-        run: bundle exec ruby -I. -e "require 'csv'; require 'json'; require 'sersol'; require 'nonsersol'"
+        run: bundle exec ruby -I. -e "require 'csv'; require 'sersol'; require 'nonsersol'"
 
   audit:
     name: Dependency audit

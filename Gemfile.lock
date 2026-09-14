@@ -3,7 +3,6 @@ GEM
   specs:
     csv (3.3.6)
     date (3.5.1)
-    json (3.0.2)
 
 PLATFORMS
   ruby
@@ -11,7 +10,6 @@ PLATFORMS
 DEPENDENCIES
   csv
   date
-  json
 
 BUNDLED WITH
    2.5.23
