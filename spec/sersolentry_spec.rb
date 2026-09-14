@@ -1,15 +1,15 @@
 require_relative '../sersol.rb'
 
 RSpec.describe SersolEntry do
-  describe 'blacklisted?' do
+  describe 'excluded?' do
     ss1 = SersolEntry.new('include as alt-access point?' => 'no')
     it 'true for records to be excluded' do
-      expect(ss1.blacklisted?).to be true
+      expect(ss1.excluded?).to be true
     end
 
     ss2 = SersolEntry.new('include as alt-access point?' => '')
     it 'raises error if whitelist not yes/no' do
-      expect { ss2.blacklisted? }.to raise_error(RuntimeError)
+      expect { ss2.excluded? }.to raise_error(RuntimeError)
     end
   end
 
@@ -27,8 +27,9 @@ RSpec.describe SersolEntry do
       expect(ss2.enddate).to eq(date2)
     end
 
+    ss_season = SersolEntry.new('enddate' => 'Fall 2017')
     it 'parses seasons (e.g. Fall) into dates' do
-      expect(ss2.enddate).to eq(date2)
+      expect(ss_season.enddate).to eq(date2)
     end
 
     ss3 = SersolEntry.new('enddate' => 'august')
@@ -66,7 +67,9 @@ RSpec.describe SersolEntry do
 
   describe 'embargo_text' do
     ss1 = SersolEntry.new('enddate' => '2015', 'resource' => 'jstor')
-    it 'operates BASED ON 2019 AS CURRENT YEAR' do
+    before { allow(Time).to receive(:now).and_return(Time.new(2019, 1, 1)) }
+
+    it 'calculates years relative to the current year' do
       expect(ss1.embargo_text).to eq('4 years ago')
     end
     it 'converts embargo fixed dates to relative dates' do
@@ -83,7 +86,8 @@ RSpec.describe SersolEntry do
   end
 
   describe 'embargo_comparator' do
-    today = Date.today
+    today = Date.new(2019, 1, 1)
+    before { allow(Date).to receive(:today).and_return(today) }
 
     ss1 = SersolEntry.new('enddate' => '9/20/2017', 'resource' => 'jstor')
     date = Date.strptime('9/20/2017', '%m/%d/%Y')

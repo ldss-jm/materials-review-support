@@ -23,7 +23,7 @@ RSpec.describe MilEntry do
       expect(s.title).to eq('The daily advance')
     end
 
-    it 'sets @_001 from 1' do
+    it 'sets @_001 from 001' do
       expect(s._001).to eq('13380767')
     end
 
@@ -49,7 +49,7 @@ RSpec.describe MilEntry do
 
     s2 = MilEntry.new('record #(order)' => 'o15841212',
                       '245' => 'The daily advance',
-                      '1' => 'ss13380767',
+                      '001' => 'ss13380767',
                       '022|a' => '0000-022a',
                       '022|l' => '0000-022La 0000-022Lb',
                       '022|y' => '0000-022ya  0000-022yb',

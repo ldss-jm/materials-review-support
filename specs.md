@@ -52,7 +52,7 @@ Standard Sierra export for order records under review. The issn fields must be s
 #### Sierra required fields
 
 * '245': title, in any form (e.g. 245, 245|abnp, non-marc title)
-* '1': the 001
+* '001': the 001
 * '022|a'
 * '022|l': that's "ell"
 * '022|y'
