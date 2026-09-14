@@ -1,5 +1,4 @@
 require 'csv'
-require 'json'
 require_relative 'sersol'
 require_relative 'nonsersol'
 
@@ -13,7 +12,7 @@ require_relative 'nonsersol'
 #
 # Matches non-sersol records to sersol records by ssj or good issns
 # For Sierra records, if no matches:
-#   if still no matches, tries to match using Sierra 022|y
+#   if no matches, tries to match using Sierra 022|y
 # Writes recs with best current resource to current output file
 # Writes recs with best noncurrent resource (incl nothing when no matches) to
 #   noncurrent output file,
@@ -42,8 +41,7 @@ require_relative 'nonsersol'
 #       "1 year ago"
 # ldss notes:
 # it's better to exclude |y on the export except as last resort, and 022|y
-# matches should be reviewed. 022|y leads to false positives and we got better
-# results looking up oclc nums in worldcat to match up w/ sersol report
+# matches should be reviewed because 022|y can lead to false positives.
 
 
 process_sierra = true
@@ -59,7 +57,6 @@ OUTPUT_SIERRA = 'output_sierra.txt'.freeze
 OUTPUT_TITLELIST = 'output_titlelist.txt'.freeze
 OUTPUT_SIERRA_EXTRAS = 'output_problem_sierra_extramatches.txt'.freeze
 OUTPUT_TITLELIST_EXTRAS = 'output_problem_titlelist_extramatches.txt'.freeze
-SCRAPED_ISSN_FILE = 'scraped_issns.json'.freeze
 
 OUTPUT_HEADERS = %w[matchcount bib_identifier_notes all_issns matching_ssj
                     matching_title
@@ -170,13 +167,6 @@ if process_sierra
   # use fallback methods to find matches for unmatched records
   #
   no_matches = mil_records.select { |r| r.match_count.zero? }
-
-  prev_scraped =
-    begin
-      File.open(SCRAPED_ISSN_FILE, 'r') { |f| prev_scraped = JSON.parse(f.read) }
-    rescue Errno::ENOENT # prev_scraped file does not exist
-      {}
-    end
 
   i = 0
   no_matches.each do |mrec|

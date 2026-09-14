@@ -1,9 +1,6 @@
 require_relative '../nonsersol.rb'
-require_relative '../../worldcat_api_and_wcm/metadata_api.rb'
 
 RSpec.describe MilEntry do
-  let(:api) { MetadataAPI.new('../worldcat_api_and_wcm/kms.metadata.secret') }
-
   class MilEntry
     attr_reader :_022a, :_022L, :_022y, :_776
   end
@@ -26,7 +23,7 @@ RSpec.describe MilEntry do
       expect(s.title).to eq('The daily advance')
     end
 
-    it 'sets @_001 from 1' do
+    it 'sets @_001 from 001' do
       expect(s._001).to eq('13380767')
     end
 
@@ -52,7 +49,7 @@ RSpec.describe MilEntry do
 
     s2 = MilEntry.new('record #(order)' => 'o15841212',
                       '245' => 'The daily advance',
-                      '1' => 'ss13380767',
+                      '001' => 'ss13380767',
                       '022|a' => '0000-022a',
                       '022|l' => '0000-022La 0000-022Lb',
                       '022|y' => '0000-022ya  0000-022yb',
@@ -88,25 +85,4 @@ RSpec.describe MilEntry do
   describe 'add_022y' do
   end
 
-  describe 'add_scraped_issns' do
-    'includes scraped issns when present'
-  end
-
-  describe 'scrape_issns' do
-    data3 = {
-      'record #(order)' => 'o15841212',
-      '245' => 'The daily advance',
-      '001' => '812282',
-      '022|a' => '0000-022a',
-      '022|l' => '0000-022La 0000-022Lb',
-      '022|y' => '0000-022ya  0000-022yb',
-      '776|x' => '0000-776xa 0000-776xb'
-    }
-    s3 = MilEntry.new(data3)
-
-    it 'returns issns that match the 001' do
-      s3.scrape_issns(api)
-      expect(s3.scraped_issns.include?('0033-1457')).to be true
-    end
-  end
 end
